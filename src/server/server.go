@@ -6,7 +6,7 @@ import (
 	"net/http"
 
 	"github.com/gorilla/websocket"
-	"github.com/nadavash/bot-or-not/src/message"
+	"../message"
 )
 
 var clients = make(map[*websocket.Conn]bool)

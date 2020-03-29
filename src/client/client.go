@@ -8,7 +8,7 @@ import (
 	"os"
 
 	"github.com/gorilla/websocket"
-	"github.com/nadavash/bot-or-not/src/message"
+	"../message"
 )
 
 func handleIncomingMessages(conn *websocket.Conn) {
