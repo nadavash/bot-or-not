@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/gorilla/websocket"
 	"../message"
+	"github.com/gorilla/websocket"
 )
 
 func handleIncomingMessages(conn *websocket.Conn) {
