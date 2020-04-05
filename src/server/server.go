@@ -16,8 +16,6 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	// Register our new client
-	clients[ws] = true
 
 	for _, room := range rooms {
 		if room.roomState == RoomStateWaiting {
