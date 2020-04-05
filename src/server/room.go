@@ -17,6 +17,7 @@ const (
 	RoomStateInProgress = 1
 	RoomStateFinished   = 2
 	gameTime            = 2
+	roomLimit           = 2
 )
 
 type Room struct {
@@ -32,26 +33,36 @@ type clientMessagePair struct {
 
 func NewRoom() *Room {
 	r := new(Room)
-	r.clients = make([]*websocket.Conn, 4)
+	r.clients = make([]*websocket.Conn, 0, roomLimit)
 	r.roomState = RoomStateWaiting
 	r.broadcastChannel = make(chan clientMessagePair)
 	return r
 }
 
 func (r *Room) addClient(client *websocket.Conn) error {
+	fmt.Println("addingClient")
+	fmt.Println(len(r.clients))
 	if r.roomState != RoomStateWaiting {
 		return errors.New("Cannot add clients to a Room that's in progress or finished")
 	}
 	r.clients = append(r.clients, client)
-	if len(r.clients) == 4 {
+	if len(r.clients) == roomLimit {
+		fmt.Println("4 clients added")
+		go r.test()
+		go r.broadcastMessages()
 		r.roomState = RoomStateInProgress
 		r.sendRoomMessage("Room full! Game starting now.")
+		go r.handleGameLogic()
 		for _, client := range r.clients {
+			fmt.Println("accepting from client")
 			go r.acceptIncomingMessages(client)
 		}
-		go r.broadcastMessages()
 	}
 	return nil
+}
+
+func (r *Room) test() {
+	fmt.Println("in test")
 }
 
 func (r *Room) acceptIncomingMessages(client *websocket.Conn) {
@@ -72,8 +83,11 @@ func (r *Room) acceptIncomingMessages(client *websocket.Conn) {
 }
 
 func (r *Room) broadcastMessages() {
+	fmt.Println("starting broadcast messages")
 	for r.roomState == RoomStateInProgress || len(r.broadcastChannel) > 0 {
+		fmt.Println("in loop")
 		clientMessage := <-r.broadcastChannel
+		fmt.Println(clientMessage.message)
 		for _, client := range r.clients {
 			if client == clientMessage.client {
 				continue
@@ -92,10 +106,11 @@ func (r *Room) broadcastMessages() {
 }
 
 func (r *Room) handleGameLogic() {
+	fmt.Println("4 client")
 	for minutesLeft := gameTime; minutesLeft > 0; minutesLeft-- {
-		time.Sleep(time.Minute)
 		r.sendRoomMessage(
-			fmt.Sprintf("%d left in the game", minutesLeft))
+			fmt.Sprintf("%d minutes left in the game", minutesLeft))
+		time.Sleep(time.Minute)
 	}
 
 	r.sendRoomMessage("Times up, game is over!")
@@ -103,13 +118,15 @@ func (r *Room) handleGameLogic() {
 }
 
 func (r *Room) sendRoomMessage(s string) {
-	r.broadcastChannel <- clientMessagePair{
-		message.Message{
-			Username: "Room",
-			Message:  s,
-		},
-		nil,
-	}
+	go func() {
+		r.broadcastChannel <- clientMessagePair{
+			message.Message{
+				Username: "Room",
+				Message:  s,
+			},
+			nil,
+		}
+	}()
 }
 
 func (r *Room) removeClient(client *websocket.Conn) {
