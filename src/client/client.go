@@ -7,8 +7,9 @@ import (
 	"net/http"
 	"os"
 
-	"../message"
+	cursor "github.com/ahmetb/go-cursor"
 	"github.com/gorilla/websocket"
+	"github.com/nadavash/bot-or-not/src/message"
 )
 
 func handleIncomingMessages(conn *websocket.Conn) {
@@ -19,8 +20,8 @@ func handleIncomingMessages(conn *websocket.Conn) {
 			log.Printf("error: %v", err)
 		}
 		// Return to beginning.
-		fmt.Printf("\r")
-		fmt.Printf("%s: %s\n", message.Username, message.Message)
+		fmt.Print(cursor.ClearEntireLine())
+		fmt.Printf("\r%s: %s\n> ", message.Username, message.Message)
 	}
 }
 

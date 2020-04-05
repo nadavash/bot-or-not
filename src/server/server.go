@@ -5,12 +5,17 @@ import (
 	"log"
 	"net/http"
 
-	"../message"
 	"github.com/gorilla/websocket"
+	"github.com/nadavash/bot-or-not/src/message"
 )
 
+type clientMessagePair struct {
+	message message.Message
+	client  *websocket.Conn
+}
+
 var clients = make(map[*websocket.Conn]bool)
-var broadcast = make(chan message.Message)
+var broadcast = make(chan clientMessagePair)
 
 var upgrader = websocket.Upgrader{}
 
@@ -35,18 +40,21 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 		// Send the newly received message to the broadcast channel
-		broadcast <- msg
-		fmt.Println("Message received: ", msg)
+		broadcast <- clientMessagePair{client: ws, message: msg}
+		fmt.Println("Message received:", msg)
 	}
 }
 
 func handleMessages() {
 	for {
 		// Grab the next message from the broadcast channel
-		msg := <-broadcast
+		clientMessage := <-broadcast
 		// Send it out to every client that is currently connected
 		for client := range clients {
-			err := client.WriteJSON(msg)
+			if client == clientMessage.client {
+				continue
+			}
+			err := client.WriteJSON(clientMessage.message)
 			if err != nil {
 				log.Printf("error: %v", err)
 				client.Close()
