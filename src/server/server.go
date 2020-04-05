@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 
@@ -26,6 +27,11 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	fmt.Println("V3")
+	for i := 0; i < cap(rooms); i++ {
+		rooms = append(rooms, NewRoom())
+	}
+
 	// Configure websocket route
 	http.HandleFunc("/ws", handleConnections)
 	// Start the server on localhost port 8000 and log any errors
