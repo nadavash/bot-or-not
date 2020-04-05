@@ -27,9 +27,9 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	fmt.Println("V3")
+	fmt.Println("V5")
 	for i := 0; i < cap(rooms); i++ {
-		rooms = append(rooms, NewRoom())
+		rooms[i] = NewRoom()
 	}
 
 	// Configure websocket route
