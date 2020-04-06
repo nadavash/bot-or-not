@@ -25,12 +25,7 @@ func handleIncomingMessages(conn *websocket.Conn) {
 	}
 }
 
-func handleOutgoingMessages(conn *websocket.Conn) {
-	scanner := bufio.NewScanner(os.Stdin)
-	fmt.Print("What's your name?\nname: ")
-	scanner.Scan()
-	name := scanner.Text()
-
+func handleOutgoingMessages(scanner *bufio.Scanner, name string, conn *websocket.Conn) {
 	for {
 		fmt.Print("> ")
 		if !scanner.Scan() {
@@ -49,12 +44,17 @@ func handleOutgoingMessages(conn *websocket.Conn) {
 }
 
 func main() {
+	scanner := bufio.NewScanner(os.Stdin)
+	fmt.Print("What's your name?\nname: ")
+	scanner.Scan()
+	name := scanner.Text()
+
 	requestHeader := http.Header{}
 	dialer := websocket.Dialer{}
-	conn, _, err := dialer.Dial("ws://localhost:8000/ws", requestHeader)
+	conn, _, err := dialer.Dial("ws://0b5eb1db.ngrok.io/ws", requestHeader)
 	if err != nil {
 		log.Fatal("Error occurred during Dialer.Dial(): ", err)
 	}
 	go handleIncomingMessages(conn)
-	handleOutgoingMessages(conn)
+	handleOutgoingMessages(scanner, name, conn)
 }
