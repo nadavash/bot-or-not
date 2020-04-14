@@ -9,6 +9,7 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/nadavash/bot-or-not/src/message"
+	"github.com/mitchellh/mapstructure"
 )
 
 type RoomState int
@@ -26,6 +27,7 @@ type Room struct {
 	roomState        RoomState
 	clients          []*websocket.Conn
 	broadcastChannel chan clientMessagePair
+	finishedCallback func(*websocket.Conn)
 }
 
 type clientMessagePair struct {
@@ -33,12 +35,13 @@ type clientMessagePair struct {
 	client  *websocket.Conn
 }
 
-func NewRoom() *Room {
+func NewRoom(onClientFinished func(*websocket.Conn)) *Room {
 	r := new(Room)
 	r.roomId = rand.Uint32() % 10000
 	r.clients = make([]*websocket.Conn, 0, roomLimit)
 	r.roomState = RoomStateWaiting
 	r.broadcastChannel = make(chan clientMessagePair)
+	r.finishedCallback = onClientFinished
 	return r
 }
 
@@ -62,7 +65,7 @@ func (r *Room) AddClient(client *websocket.Conn) error {
 		go r.handleGameLogic()
 		for _, client := range r.clients {
 			fmt.Println("accepting from client")
-			go r.acceptIncomingMessages(client)
+			go r.acceptIncomingChatMessages(client)
 		}
 	}
 	client.WriteJSON(
@@ -80,9 +83,9 @@ func (r *Room) test() {
 	fmt.Println("in test")
 }
 
-func (r *Room) acceptIncomingMessages(client *websocket.Conn) {
+func (r *Room) acceptIncomingChatMessages(client *websocket.Conn) {
 	for r.roomState == RoomStateInProgress {
-		var msg message.ChatMessage
+		var msg interface{}
 		// Read in a new message as JSON and map it to a Message object
 		err := client.ReadJSON(&msg)
 		if err != nil {
@@ -91,16 +94,40 @@ func (r *Room) acceptIncomingMessages(client *websocket.Conn) {
 			client.Close()
 			break
 		}
-		// Send the newly received message to the broadcast channel
-		r.broadcastChannel <- clientMessagePair{
-			client: client,
-			message: message.MessageBase{
-				MessageType: message.MessageTypeChat,
-				MessageBody: msg,
-			},
+		if r.roomState == RoomStateInProgress {
+			var chatMessage message.ChatMessage
+			mapstructure.Decode(msg, &chatMessage)
+			r.broadcastChannel <- clientMessagePair{
+				client: client,
+				message: message.MessageBase{
+					MessageType: message.MessageTypeChat,
+					MessageBody: chatMessage,
+				},
+			}
+		} else if r.roomState == RoomStateFinished {
+			var decisionMessage message.BotOrNotAnswerMessage
+			mapstructure.Decode(msg, &decisionMessage)
+
+			fmt.Println("accepting decisions from clients")
+			fmt.Println("Decision received:", decisionMessage)
+			log.Printf("decision: %v", decisionMessage.ArePlayersBotsAnswer)
+			r.roomState = RoomStateFinished
+			r.acceptPlayAgain(client)
 		}
-		fmt.Println("Message received:", msg)
 	}
+}
+
+func (r *Room) acceptPlayAgain(client *websocket.Conn) {
+	fmt.Println("about to accept play again")
+	var msg message.PlayAgainMessage
+	err := client.ReadJSON(&msg)
+	fmt.Println("reading play again")
+	if err != nil {
+		log.Printf("error: %v", err)
+		r.removeClient(client)
+		client.Close()
+	}
+	r.finishedCallback(client)
 }
 
 func (r *Room) broadcastMessages() {
@@ -121,9 +148,9 @@ func (r *Room) broadcastMessages() {
 		}
 	}
 
-	for _, client := range r.clients {
-		client.Close()
-	}
+	//for _, client := range r.clients {
+	//	client.Close()
+	//}
 }
 
 func (r *Room) handleGameLogic() {

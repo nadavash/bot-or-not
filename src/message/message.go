@@ -8,6 +8,7 @@ const (
 	MessageTypeRoomConnectionSuccess   = 2
 	MessageTypeGameOver                = 3
 	MessageTypeBotOrNotAnswer          = 4
+	MessagePlayAgain                   = 4
 )
 
 type MessageBase struct {
@@ -32,6 +33,10 @@ type RoomConnectionSuccessMessage struct {
 }
 
 type GameOverMessage struct{}
+
+type PlayAgainMessage struct{
+	PlayAgain bool
+}
 
 type BotOrNotAnswerMessage struct {
 	ArePlayersBotsAnswer bool

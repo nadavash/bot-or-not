@@ -26,10 +26,13 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 			},
 		},
 	)
+	AssignRoom(ws)
+}
 
+func AssignRoom(client *websocket.Conn) {
 	for _, room := range rooms {
 		if room.roomState == RoomStateWaiting {
-			room.AddClient(ws)
+			room.AddClient(client)
 			break
 		}
 	}
@@ -38,7 +41,7 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 func main() {
 	fmt.Println("V5")
 	for i := 0; i < cap(rooms); i++ {
-		rooms[i] = NewRoom()
+		rooms[i] = NewRoom(AssignRoom)
 	}
 
 	// Configure websocket route
