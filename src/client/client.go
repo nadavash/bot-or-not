@@ -14,14 +14,27 @@ import (
 
 func handleIncomingMessages(conn *websocket.Conn) {
 	for {
-		var message message.Message
-		err := conn.ReadJSON(&message)
+		var m message.MessageBase
+		err := conn.ReadJSON(&m)
 		if err != nil {
 			log.Printf("error: %v", err)
 		}
-		// Return to beginning.
-		fmt.Print(cursor.ClearEntireLine())
-		fmt.Printf("\r%s: %s\n> ", message.Username, message.Message)
+
+		messageBody := m.MessageBody.(map[string]interface{})
+		switch m.MessageType {
+		case message.MessageTypeServerConnectionSuccess:
+			fmt.Println(messageBody["WelcomeMessage"])
+		case message.MessageTypeRoomConnectionSuccess:
+			fmt.Printf("Successfully connected to room %g\n", messageBody["roomId"])
+		case message.MessageTypeChat:
+			// Return to beginning.
+			fmt.Print(cursor.ClearEntireLine())
+			fmt.Printf("\r%s: %s\n> ", messageBody["username"], messageBody["message"])
+		case message.MessageTypeGameOver:
+			fmt.Println("Game over. Disconnecting from server.")
+			conn.Close()
+			return
+		}
 	}
 }
 
@@ -32,7 +45,7 @@ func handleOutgoingMessages(scanner *bufio.Scanner, name string, conn *websocket
 			log.Printf("Scanner.Scan() returned false!")
 		}
 		err := conn.WriteJSON(
-			&message.Message{
+			&message.ChatMessage{
 				Email:    "example@test.com",
 				Username: name,
 				Message:  scanner.Text(),
@@ -51,7 +64,7 @@ func main() {
 
 	requestHeader := http.Header{}
 	dialer := websocket.Dialer{}
-	conn, _, err := dialer.Dial("ws://0b5eb1db.ngrok.io/ws", requestHeader)
+	conn, _, err := dialer.Dial("ws://localhost:8000/ws", requestHeader)
 	if err != nil {
 		log.Fatal("Error occurred during Dialer.Dial(): ", err)
 	}

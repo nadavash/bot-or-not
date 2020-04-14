@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"math/rand"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -16,30 +17,36 @@ const (
 	RoomStateWaiting    = 0
 	RoomStateInProgress = 1
 	RoomStateFinished   = 2
-	gameTime            = 2
-	roomLimit           = 2
+	gameTimeSeconds     = 5
+	roomLimit           = 1
 )
 
 type Room struct {
+	roomId           uint32
 	roomState        RoomState
 	clients          []*websocket.Conn
 	broadcastChannel chan clientMessagePair
 }
 
 type clientMessagePair struct {
-	message message.Message
+	message message.MessageBase
 	client  *websocket.Conn
 }
 
 func NewRoom() *Room {
 	r := new(Room)
+	r.roomId = rand.Uint32() % 10000
 	r.clients = make([]*websocket.Conn, 0, roomLimit)
 	r.roomState = RoomStateWaiting
 	r.broadcastChannel = make(chan clientMessagePair)
 	return r
 }
 
-func (r *Room) addClient(client *websocket.Conn) error {
+func (r *Room) GetRoomId() uint32 {
+	return r.roomId
+}
+
+func (r *Room) AddClient(client *websocket.Conn) error {
 	fmt.Println("addingClient")
 	fmt.Println(len(r.clients))
 	if r.roomState != RoomStateWaiting {
@@ -58,6 +65,14 @@ func (r *Room) addClient(client *websocket.Conn) error {
 			go r.acceptIncomingMessages(client)
 		}
 	}
+	client.WriteJSON(
+		message.MessageBase{
+			MessageType: message.MessageTypeRoomConnectionSuccess,
+			MessageBody: message.RoomConnectionSuccessMessage{
+				RoomId: r.roomId,
+			},
+		},
+	)
 	return nil
 }
 
@@ -67,7 +82,7 @@ func (r *Room) test() {
 
 func (r *Room) acceptIncomingMessages(client *websocket.Conn) {
 	for r.roomState == RoomStateInProgress {
-		var msg message.Message
+		var msg message.ChatMessage
 		// Read in a new message as JSON and map it to a Message object
 		err := client.ReadJSON(&msg)
 		if err != nil {
@@ -77,7 +92,13 @@ func (r *Room) acceptIncomingMessages(client *websocket.Conn) {
 			break
 		}
 		// Send the newly received message to the broadcast channel
-		r.broadcastChannel <- clientMessagePair{client: client, message: msg}
+		r.broadcastChannel <- clientMessagePair{
+			client: client,
+			message: message.MessageBase{
+				MessageType: message.MessageTypeChat,
+				MessageBody: msg,
+			},
+		}
 		fmt.Println("Message received:", msg)
 	}
 }
@@ -107,22 +128,32 @@ func (r *Room) broadcastMessages() {
 
 func (r *Room) handleGameLogic() {
 	fmt.Println("4 client")
-	for minutesLeft := gameTime; minutesLeft > 0; minutesLeft-- {
+	for secondsLeft := gameTimeSeconds; secondsLeft > 0; secondsLeft-- {
 		r.sendRoomMessage(
-			fmt.Sprintf("%d minutes left in the game", minutesLeft))
-		time.Sleep(time.Minute)
+			fmt.Sprintf("%d seconds left in the game", secondsLeft))
+		time.Sleep(time.Second)
 	}
 
 	r.sendRoomMessage("Times up, game is over!")
 	r.roomState = RoomStateFinished
+	r.broadcastChannel <- clientMessagePair{
+		message.MessageBase{
+			MessageType: message.MessageTypeGameOver,
+			MessageBody: message.GameOverMessage{},
+		},
+		nil,
+	}
 }
 
 func (r *Room) sendRoomMessage(s string) {
 	go func() {
 		r.broadcastChannel <- clientMessagePair{
-			message.Message{
-				Username: "Room",
-				Message:  s,
+			message.MessageBase{
+				MessageType: message.MessageTypeChat,
+				MessageBody: message.ChatMessage{
+					Username: "Room",
+					Message:  s,
+				},
 			},
 			nil,
 		}

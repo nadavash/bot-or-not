@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/gorilla/websocket"
+	"github.com/nadavash/bot-or-not/src/message"
 )
 
 var rooms = make([]*Room, 10)
@@ -17,10 +18,18 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Fatal(err)
 	}
+	ws.WriteJSON(
+		message.MessageBase{
+			MessageType: message.MessageTypeServerConnectionSuccess,
+			MessageBody: message.ServerConnectionSuccessMessage{
+				WelcomeMessage: "You're connected to the Bot or Not server!",
+			},
+		},
+	)
 
 	for _, room := range rooms {
 		if room.roomState == RoomStateWaiting {
-			room.addClient(ws)
+			room.AddClient(ws)
 			break
 		}
 	}
