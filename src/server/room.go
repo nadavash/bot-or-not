@@ -7,9 +7,8 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/gorilla/websocket"
 	"github.com/nadavash/bot-or-not/src/message"
-	"github.com/nadavash/bot-or-not/src/netutil"
+	"github.com/nadavash/bot-or-not/src/player"
 )
 
 type RoomState int
@@ -25,23 +24,23 @@ const (
 type Room struct {
 	roomId           uint32
 	roomState        RoomState
-	clients          []*websocket.Conn
-	broadcastChannel chan clientMessagePair
-	finishedCallback func(*websocket.Conn)
+	players          []player.Player
+	broadcastChannel chan playerMessagePair
+	finishedCallback func(player.Player)
 }
 
-type clientMessagePair struct {
+type playerMessagePair struct {
 	message *message.WrapperMessage
-	client  *websocket.Conn
+	player  player.Player
 }
 
-func NewRoom(onClientFinished func(*websocket.Conn)) *Room {
+func NewRoom(onPlayerFinished func(player.Player)) *Room {
 	r := new(Room)
 	r.roomId = rand.Uint32() % 10000
-	r.clients = make([]*websocket.Conn, 0, roomLimit)
+	r.players = make([]player.Player, 0, roomLimit)
 	r.roomState = RoomStateWaiting
-	r.broadcastChannel = make(chan clientMessagePair)
-	r.finishedCallback = onClientFinished
+	r.broadcastChannel = make(chan playerMessagePair)
+	r.finishedCallback = onPlayerFinished
 	return r
 }
 
@@ -49,23 +48,23 @@ func (r *Room) GetRoomId() uint32 {
 	return r.roomId
 }
 
-func (r *Room) AddClient(client *websocket.Conn) error {
-	fmt.Println("addingClient")
-	fmt.Println(len(r.clients))
+func (r *Room) AddPlayer(player player.Player) error {
+	fmt.Println("addingPlayer")
+	fmt.Println(len(r.players))
 	if r.roomState != RoomStateWaiting {
-		return errors.New("Cannot add clients to a Room that's in progress or finished")
+		return errors.New("Cannot add players to a Room that's in progress or finished")
 	}
-	r.clients = append(r.clients, client)
-	if len(r.clients) == roomLimit {
-		fmt.Println("4 clients added")
+	r.players = append(r.players, player)
+	if len(r.players) == roomLimit {
+		fmt.Println("4 players added")
 		go r.test()
 		go r.broadcastMessages()
 		r.roomState = RoomStateInProgress
 		r.sendRoomMessage("Room full! Game starting now.")
 		go r.handleGameLogic()
-		for _, client := range r.clients {
-			fmt.Println("accepting from client")
-			go r.acceptIncomingChatMessages(client)
+		for _, player := range r.players {
+			fmt.Println("accepting from player")
+			go r.acceptIncomingChatMessages(player)
 		}
 	}
 
@@ -74,80 +73,78 @@ func (r *Room) AddClient(client *websocket.Conn) error {
 			RoomId: r.roomId,
 		},
 	)
-	return netutil.SendProtoMessage(client, msg)
+	return player.SendMessage(msg)
 }
 
 func (r *Room) test() {
 	fmt.Println("in test")
 }
 
-func (r *Room) acceptIncomingChatMessages(client *websocket.Conn) {
+func (r *Room) acceptIncomingChatMessages(player player.Player) {
 	for r.roomState == RoomStateInProgress {
 		// Read in a new message as JSON and map it to a Message object
-		wrapperMsg, err := netutil.ReadProtoMessage(client)
+		wrapperMsg, err := player.ReceiveMessage()
 		if err != nil {
 			log.Printf("Error occurred while reading proto message: %v", err)
-			r.removeClient(client)
-			client.Close()
+			r.removePlayer(player)
+			// TODO: instead of closing the connection, boot all of the players out
+			// and force them to search for a new game.
+			// player.Close()
 			return
 		}
 
 		if r.roomState == RoomStateInProgress {
 			chatMsg := wrapperMsg.GetChat()
-			r.broadcastChannel <- clientMessagePair{
-				client:  client,
+			r.broadcastChannel <- playerMessagePair{
+				player:  player,
 				message: message.WrapChatMessage(chatMsg),
 			}
 		} else if r.roomState == RoomStateFinished {
 			decisionMsg := wrapperMsg.GetBotOrNot()
 
 			fmt.Println("Message:", wrapperMsg)
-			fmt.Println("accepting decisions from clients")
+			fmt.Println("accepting decisions from players")
 			fmt.Println("Decision received:", decisionMsg)
 			log.Printf("decision: %v", decisionMsg.ArePlayersBots)
 			r.roomState = RoomStateFinished
-			r.acceptPlayAgain(client)
+			r.acceptPlayAgain(player)
 		}
 	}
 }
 
-func (r *Room) acceptPlayAgain(client *websocket.Conn) {
+func (r *Room) acceptPlayAgain(player player.Player) {
 	fmt.Println("about to accept play again")
-	_, err := netutil.ReadProtoMessage(client)
+	_, err := player.ReceiveMessage()
 	fmt.Println("reading play again")
 	if err != nil {
 		log.Printf("error: %v", err)
-		r.removeClient(client)
-		client.Close()
+		r.removePlayer(player)
+		//player.Close()
 	}
-	r.finishedCallback(client)
+	r.finishedCallback(player)
 }
 
 func (r *Room) broadcastMessages() {
 	fmt.Println("starting broadcast messages")
 	for r.roomState == RoomStateInProgress || len(r.broadcastChannel) > 0 {
 		fmt.Println("in loop")
-		clientMessage := <-r.broadcastChannel
-		fmt.Println(clientMessage.message)
-		for _, client := range r.clients {
-			if client == clientMessage.client {
+		playerMessage := <-r.broadcastChannel
+		fmt.Println(playerMessage.message)
+		for _, player := range r.players {
+			if player == playerMessage.player {
 				continue
 			}
-			err := netutil.SendProtoMessage(client, clientMessage.message)
+			err := player.SendMessage(playerMessage.message)
 			if err != nil {
 				log.Printf("error: %v", err)
-				client.Close()
+				// player.Close()
 			}
 		}
 	}
-
-	//for _, client := range r.clients {
-	//	client.Close()
-	//}
 }
 
 func (r *Room) handleGameLogic() {
-	fmt.Println("4 client")
+	fmt.Println("4 player")
 	for secondsLeft := gameTimeSeconds; secondsLeft > 0; secondsLeft-- {
 		r.sendRoomMessage(
 			fmt.Sprintf("%d seconds left in the game", secondsLeft))
@@ -156,7 +153,7 @@ func (r *Room) handleGameLogic() {
 
 	r.sendRoomMessage("Times up, game is over!")
 	r.roomState = RoomStateFinished
-	r.broadcastChannel <- clientMessagePair{
+	r.broadcastChannel <- playerMessagePair{
 		message.WrapGameOverMessage(),
 		nil,
 	}
@@ -164,7 +161,7 @@ func (r *Room) handleGameLogic() {
 
 func (r *Room) sendRoomMessage(s string) {
 	go func() {
-		r.broadcastChannel <- clientMessagePair{
+		r.broadcastChannel <- playerMessagePair{
 			message.WrapChatMessage(
 				&message.ChatMessage{
 					Username: "Room",
@@ -176,10 +173,10 @@ func (r *Room) sendRoomMessage(s string) {
 	}()
 }
 
-func (r *Room) removeClient(client *websocket.Conn) {
-	for i, clientPointer := range r.clients {
-		if client == clientPointer {
-			r.clients = append(r.clients[i:], r.clients[i+1:]...)
+func (r *Room) removePlayer(player player.Player) {
+	for i, playerPointer := range r.players {
+		if player == playerPointer {
+			r.players = append(r.players[i:], r.players[i+1:]...)
 			break
 		}
 	}
