@@ -7,9 +7,11 @@ import (
 	"net/http"
 	"os"
 
-	cursor "github.com/ahmetb/go-cursor"
+	"github.com/ahmetb/go-cursor"
+	"github.com/golang/protobuf/proto"
 	"github.com/gorilla/websocket"
 	"github.com/nadavash/bot-or-not/src/message"
+	"github.com/nadavash/bot-or-not/src/netutil"
 )
 
 type GameState int
@@ -25,28 +27,36 @@ var state GameState = GameStateWaiting
 
 func handleIncomingMessages(conn *websocket.Conn) {
 	for {
-		var m message.MessageBase
-		err := conn.ReadJSON(&m)
+		wrapperMsg := &message.WrapperMessage{}
+		_, bytes, err := conn.ReadMessage()
 		if err != nil {
 			log.Printf("error: %v", err)
 		}
 
-		messageBody := m.MessageBody.(map[string]interface{})
-		switch m.MessageType {
-		case message.MessageTypeServerConnectionSuccess:
-			fmt.Println(messageBody["WelcomeMessage"])
-		case message.MessageTypeRoomConnectionSuccess:
+		if err := proto.Unmarshal(bytes, wrapperMsg); err != nil {
+			log.Printf("Unrmarshalling error: %v", err)
+		}
+
+		switch wrapperMsg.MessageType {
+		case message.MessageType_SERVER_CONNECTION_SUCCESS:
+			fmt.Println(wrapperMsg.GetServerSuccess().GetWelcomeMessage())
+		case message.MessageType_ROOM_CONNECTION_SUCCESS:
 			state = GameStatePlaying
-			fmt.Printf("Successfully connected to room %g\n", messageBody["roomId"])
-		case message.MessageTypeChat:
+			fmt.Printf(
+				"Successfully connected to room %d\n",
+				wrapperMsg.GetRoomSuccess().GetRoomId(),
+			)
+		case message.MessageType_CHAT:
+			chatMsg := wrapperMsg.GetChat()
 			// Return to beginning.
 			fmt.Print(cursor.ClearEntireLine())
-			fmt.Printf("\r%s: %s\n> ", messageBody["username"], messageBody["message"])
-		case message.MessageTypeGameOver:
+			fmt.Printf("\r%s: %s\n> ", chatMsg.GetUsername(), chatMsg.GetMessage())
+		case message.MessageType_GAME_OVER:
 			state = GameStateDeciding
 			fmt.Println("Game over. Disconnecting from server.")
 			fmt.Println("Bot Or Not?.")
 			return
+		case message.MessageType_PLAY_AGAIN:
 		}
 	}
 }
@@ -57,42 +67,47 @@ func handleOutgoingMessages(scanner *bufio.Scanner, name string, conn *websocket
 		if !scanner.Scan() {
 			log.Printf("Scanner.Scan() returned false!")
 		}
-		var err error = nil
 		switch state {
 		case GameStatePlaying:
-			err = conn.WriteJSON(
-				&message.ChatMessage{
-					Email:    "example@test.com",
-					Username: name,
-					Message:  scanner.Text(),
-				})
+			netutil.SendProtoMessage(
+				conn,
+				message.WrapChatMessage(
+					&message.ChatMessage{
+						Email:    "example@test.com",
+						Username: name,
+						Message:  scanner.Text(),
+					},
+				),
+			)
 		case GameStateDeciding:
-			err = conn.WriteJSON(
-				&message.BotOrNotAnswerMessage{
-					ArePlayersBotsAnswer: scanner.Text()[0] == 'b',
-				})
-			if err != nil {
-				log.Printf("error: %v", err)
-			}
+			netutil.SendProtoMessage(
+				conn,
+				message.WrapBotOrNotMessage(
+					&message.BotOrNotMessage{
+						ArePlayersBots: scanner.Text()[0] == 'b',
+					},
+				),
+			)
+
 			fmt.Println("Do you want to play again? (y/n)")
 			if !scanner.Scan() {
 				log.Printf("Scanner.Scan() returned false!")
 			}
-			err = conn.WriteJSON(
-				&message.PlayAgainMessage{
-					PlayAgain: scanner.Text()[0] == 'y',
-				})
-			if err != nil {
-				log.Printf("error: %v", err)
-			}
-			if scanner.Text()[0] == 'y'{
+
+			netutil.SendProtoMessage(
+				conn,
+				message.WrapPlayAgainMessage(
+					&message.PlayAgainMessage{
+						PlayAgain: scanner.Text()[0] == 'y',
+					},
+				),
+			)
+
+			if scanner.Text()[0] == 'y' {
 				state = GameStateWaiting
 			} else {
 				state = GameStateGameOver
 			}
-		}
-		if err != nil {
-			log.Printf("error: %v", err)
 		}
 	}
 }

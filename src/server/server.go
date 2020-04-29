@@ -7,6 +7,7 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/nadavash/bot-or-not/src/message"
+	"github.com/nadavash/bot-or-not/src/netutil"
 )
 
 var rooms = make([]*Room, 10)
@@ -18,14 +19,15 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	ws.WriteJSON(
-		message.MessageBase{
-			MessageType: message.MessageTypeServerConnectionSuccess,
-			MessageBody: message.ServerConnectionSuccessMessage{
-				WelcomeMessage: "You're connected to the Bot or Not server!",
-			},
+
+	msg := message.WrapServerConnectionSuccessMessage(
+		&message.ServerConnectionSuccessMessage{
+			WelcomeMessage: "You're connected to the Bot or Not server!",
 		},
 	)
+	if netutil.SendProtoMessage(ws, msg) != nil {
+		return
+	}
 	AssignRoom(ws)
 }
 

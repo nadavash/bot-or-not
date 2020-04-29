@@ -1,0 +1,49 @@
+syntax = "proto3";
+package message;
+
+option go_package = "github.com/nadavash/bot-or-not/src/message";
+
+enum MessageType {
+    SERVER_CONNECTION_SUCCESS = 0;
+    ROOM_CONNECTION_SUCCESS = 1;
+    CHAT = 2;
+    GAME_OVER = 3;
+    BOT_OR_NOT = 4;
+    PLAY_AGAIN = 5;
+}
+
+message WrapperMessage {
+    MessageType message_type = 1;
+    oneof message {
+        ServerConnectionSuccessMessage server_success = 2;
+        RoomConnectionSuccessMessage room_success = 3;
+        ChatMessage chat = 4;
+        GameOverMessage game_over = 5;
+        BotOrNotMessage bot_or_not = 6;
+        PlayAgainMessage play_again = 7;
+    }
+}
+
+message ServerConnectionSuccessMessage {
+    string welcome_message = 1;
+}
+
+message RoomConnectionSuccessMessage {
+    uint32 room_id = 1;
+}
+
+message ChatMessage {
+    string username = 1;
+    string email = 2;
+    string message = 3;
+}
+
+message GameOverMessage {}
+
+message PlayAgainMessage {
+    bool play_again = 1;
+}
+
+message BotOrNotMessage {
+    bool are_players_bots = 1;
+}

@@ -9,17 +9,17 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/nadavash/bot-or-not/src/message"
-	"github.com/mitchellh/mapstructure"
+	"github.com/nadavash/bot-or-not/src/netutil"
 )
 
 type RoomState int
 
 const (
-	RoomStateWaiting    = 0
-	RoomStateInProgress = 1
-	RoomStateFinished   = 2
-	gameTimeSeconds     = 5
-	roomLimit           = 1
+	RoomStateWaiting    RoomState = 0
+	RoomStateInProgress RoomState = 1
+	RoomStateFinished   RoomState = 2
+	gameTimeSeconds               = 5
+	roomLimit                     = 1
 )
 
 type Room struct {
@@ -31,7 +31,7 @@ type Room struct {
 }
 
 type clientMessagePair struct {
-	message message.MessageBase
+	message *message.WrapperMessage
 	client  *websocket.Conn
 }
 
@@ -68,15 +68,13 @@ func (r *Room) AddClient(client *websocket.Conn) error {
 			go r.acceptIncomingChatMessages(client)
 		}
 	}
-	client.WriteJSON(
-		message.MessageBase{
-			MessageType: message.MessageTypeRoomConnectionSuccess,
-			MessageBody: message.RoomConnectionSuccessMessage{
-				RoomId: r.roomId,
-			},
+
+	msg := message.WrapRoomConnectionSuccesMessage(
+		&message.RoomConnectionSuccessMessage{
+			RoomId: r.roomId,
 		},
 	)
-	return nil
+	return netutil.SendProtoMessage(client, msg)
 }
 
 func (r *Room) test() {
@@ -85,32 +83,28 @@ func (r *Room) test() {
 
 func (r *Room) acceptIncomingChatMessages(client *websocket.Conn) {
 	for r.roomState == RoomStateInProgress {
-		var msg interface{}
 		// Read in a new message as JSON and map it to a Message object
-		err := client.ReadJSON(&msg)
+		wrapperMsg, err := netutil.ReadProtoMessage(client)
 		if err != nil {
-			log.Printf("error: %v", err)
+			log.Printf("Error occurred while reading proto message: %v", err)
 			r.removeClient(client)
 			client.Close()
-			break
+			return
 		}
+
 		if r.roomState == RoomStateInProgress {
-			var chatMessage message.ChatMessage
-			mapstructure.Decode(msg, &chatMessage)
+			chatMsg := wrapperMsg.GetChat()
 			r.broadcastChannel <- clientMessagePair{
-				client: client,
-				message: message.MessageBase{
-					MessageType: message.MessageTypeChat,
-					MessageBody: chatMessage,
-				},
+				client:  client,
+				message: message.WrapChatMessage(chatMsg),
 			}
 		} else if r.roomState == RoomStateFinished {
-			var decisionMessage message.BotOrNotAnswerMessage
-			mapstructure.Decode(msg, &decisionMessage)
+			decisionMsg := wrapperMsg.GetBotOrNot()
 
+			fmt.Println("Message:", wrapperMsg)
 			fmt.Println("accepting decisions from clients")
-			fmt.Println("Decision received:", decisionMessage)
-			log.Printf("decision: %v", decisionMessage.ArePlayersBotsAnswer)
+			fmt.Println("Decision received:", decisionMsg)
+			log.Printf("decision: %v", decisionMsg.ArePlayersBots)
 			r.roomState = RoomStateFinished
 			r.acceptPlayAgain(client)
 		}
@@ -119,8 +113,7 @@ func (r *Room) acceptIncomingChatMessages(client *websocket.Conn) {
 
 func (r *Room) acceptPlayAgain(client *websocket.Conn) {
 	fmt.Println("about to accept play again")
-	var msg message.PlayAgainMessage
-	err := client.ReadJSON(&msg)
+	_, err := netutil.ReadProtoMessage(client)
 	fmt.Println("reading play again")
 	if err != nil {
 		log.Printf("error: %v", err)
@@ -140,7 +133,7 @@ func (r *Room) broadcastMessages() {
 			if client == clientMessage.client {
 				continue
 			}
-			err := client.WriteJSON(clientMessage.message)
+			err := netutil.SendProtoMessage(client, clientMessage.message)
 			if err != nil {
 				log.Printf("error: %v", err)
 				client.Close()
@@ -164,10 +157,7 @@ func (r *Room) handleGameLogic() {
 	r.sendRoomMessage("Times up, game is over!")
 	r.roomState = RoomStateFinished
 	r.broadcastChannel <- clientMessagePair{
-		message.MessageBase{
-			MessageType: message.MessageTypeGameOver,
-			MessageBody: message.GameOverMessage{},
-		},
+		message.WrapGameOverMessage(),
 		nil,
 	}
 }
@@ -175,13 +165,12 @@ func (r *Room) handleGameLogic() {
 func (r *Room) sendRoomMessage(s string) {
 	go func() {
 		r.broadcastChannel <- clientMessagePair{
-			message.MessageBase{
-				MessageType: message.MessageTypeChat,
-				MessageBody: message.ChatMessage{
+			message.WrapChatMessage(
+				&message.ChatMessage{
 					Username: "Room",
 					Message:  s,
 				},
-			},
+			),
 			nil,
 		}
 	}()
