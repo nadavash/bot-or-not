@@ -44,7 +44,10 @@ func AssignRoom(player player.Player) {
 func main() {
 	fmt.Println("V5")
 	for i := 0; i < cap(rooms); i++ {
-		rooms[i] = NewRoom(AssignRoom)
+		room := NewRoom(AssignRoom)
+		rooms[i] = room
+		botPlayer := player.NewBotPlayer()
+		room.AddPlayer(botPlayer)
 	}
 
 	// Configure websocket route

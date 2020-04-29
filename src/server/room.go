@@ -17,8 +17,8 @@ const (
 	RoomStateWaiting    RoomState = 0
 	RoomStateInProgress RoomState = 1
 	RoomStateFinished   RoomState = 2
-	gameTimeSeconds               = 5
-	roomLimit                     = 1
+	gameTimeSeconds               = 120
+	roomLimit                     = 2
 )
 
 type Room struct {
@@ -148,7 +148,7 @@ func (r *Room) handleGameLogic() {
 	for secondsLeft := gameTimeSeconds; secondsLeft > 0; secondsLeft-- {
 		r.sendRoomMessage(
 			fmt.Sprintf("%d seconds left in the game", secondsLeft))
-		time.Sleep(time.Second)
+		time.Sleep(time.Minute)
 	}
 
 	r.sendRoomMessage("Times up, game is over!")
