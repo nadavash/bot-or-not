@@ -27,6 +27,7 @@ type Room struct {
 	players          []player.Player
 	broadcastChannel chan playerMessagePair
 	finishedCallback func(player.Player)
+	isBotRoom        bool
 }
 
 type playerMessagePair struct {
@@ -34,13 +35,17 @@ type playerMessagePair struct {
 	player  player.Player
 }
 
-func NewRoom(onPlayerFinished func(player.Player)) *Room {
+func NewRoom(onPlayerFinished func(player.Player), botRoom bool) *Room {
 	r := new(Room)
 	r.roomId = rand.Uint32() % 10000
 	r.players = make([]player.Player, 0, roomLimit)
 	r.roomState = RoomStateWaiting
 	r.broadcastChannel = make(chan playerMessagePair)
 	r.finishedCallback = onPlayerFinished
+	r.isBotRoom = botRoom
+	if botRoom {
+		go r.generateBotPlayers()
+	}
 	return r
 }
 
@@ -179,5 +184,20 @@ func (r *Room) removePlayer(player player.Player) {
 			r.players = append(r.players[i:], r.players[i+1:]...)
 			break
 		}
+	}
+}
+
+func (r *Room) generateBotPlayers() {
+	botPlayers := 0
+	instantBotPlayers := rand.Intn(roomLimit + 1)
+	botPlayers += instantBotPlayers
+	for i := 0; i < instantBotPlayers; i++ {
+		botPlayer := player.NewBotPlayer()
+		r.AddPlayer(botPlayer)
+	}
+	for ; botPlayers < roomLimit-1; botPlayers++ {
+		time.Sleep(time.Second * time.Duration(rand.Intn(30)))
+		botPlayer := player.NewBotPlayer()
+		r.AddPlayer(botPlayer)
 	}
 }

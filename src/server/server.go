@@ -10,7 +10,8 @@ import (
 	"github.com/nadavash/bot-or-not/src/player"
 )
 
-var rooms = make([]*Room, 10)
+var botRooms = make(map[uint32]*Room)
+var humanRooms = make(map[uint32]*Room)
 var upgrader = websocket.Upgrader{}
 
 func handleConnections(w http.ResponseWriter, r *http.Request) {
@@ -33,23 +34,27 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 }
 
 func AssignRoom(player player.Player) {
-	for _, room := range rooms {
-		if room.roomState == RoomStateWaiting {
-			room.AddPlayer(player)
-			break
+	goesToBotRoom := false
+	if goesToBotRoom {
+		botRoom := NewRoom(AssignRoom, true)
+		botRooms[botRoom.GetRoomId()] = botRoom
+		botRoom.AddPlayer(player)
+	} else {
+		// This may break if room is deleted while we are iterating through them
+		for _, room := range humanRooms {
+			if room.roomState == RoomStateWaiting {
+				room.AddPlayer(player)
+				return
+			}
 		}
+		newRoom := NewRoom(AssignRoom, false)
+		newRoom.AddPlayer(player)
+		humanRooms[newRoom.GetRoomId()] = newRoom
 	}
 }
 
 func main() {
 	fmt.Println("V5")
-	for i := 0; i < cap(rooms); i++ {
-		room := NewRoom(AssignRoom)
-		rooms[i] = room
-		botPlayer := player.NewBotPlayer()
-		room.AddPlayer(botPlayer)
-	}
-
 	// Configure websocket route
 	http.HandleFunc("/ws", handleConnections)
 	// Start the server on localhost port 8000 and log any errors
