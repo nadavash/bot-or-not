@@ -24,6 +24,7 @@ const (
 )
 
 var state GameState = GameStateWaiting
+var arePlayersBotsAnswer bool = false
 
 func handleIncomingMessages(conn *websocket.Conn) {
 	for {
@@ -53,10 +54,14 @@ func handleIncomingMessages(conn *websocket.Conn) {
 			fmt.Printf("\r%s: %s\n> ", chatMsg.GetUsername(), chatMsg.GetMessage())
 		case message.MessageType_GAME_OVER:
 			state = GameStateDeciding
-			fmt.Println("Game over. Disconnecting from server.")
 			fmt.Println("Bot Or Not?.")
-			return
-		case message.MessageType_PLAY_AGAIN:
+		case message.MessageType_ANSWER_CORRECT:
+			state = GameStateGameOver
+			if wrapperMsg.GetAnswerCorrect().GetIsCorrectAnswer() {
+				fmt.Println("You answered correctly!")
+			} else {
+				fmt.Println("You answered incorrectly!")
+			}
 		}
 	}
 }
@@ -80,11 +85,12 @@ func handleOutgoingMessages(scanner *bufio.Scanner, name string, conn *websocket
 				),
 			)
 		case GameStateDeciding:
+			arePlayersBotsAnswer = scanner.Text()[0] == 'b'
 			netutil.SendProtoMessage(
 				conn,
 				message.WrapBotOrNotMessage(
 					&message.BotOrNotMessage{
-						ArePlayersBots: scanner.Text()[0] == 'b',
+						ArePlayersBots: arePlayersBotsAnswer,
 					},
 				),
 			)
@@ -112,6 +118,12 @@ func handleOutgoingMessages(scanner *bufio.Scanner, name string, conn *websocket
 	}
 }
 
+func handleGameLoop(scanner *bufio.Scanner, name string, conn *websocket.Conn) {
+	go handleIncomingMessages(conn)
+	handleOutgoingMessages(scanner, name, conn)
+	conn.Close()
+}
+
 func main() {
 	scanner := bufio.NewScanner(os.Stdin)
 	fmt.Print("What's your name?\nname: ")
@@ -124,6 +136,5 @@ func main() {
 	if err != nil {
 		log.Fatal("Error occurred during Dialer.Dial(): ", err)
 	}
-	go handleIncomingMessages(conn)
-	handleOutgoingMessages(scanner, name, conn)
+	handleGameLoop(scanner, name, conn)
 }

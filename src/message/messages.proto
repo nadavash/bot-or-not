@@ -10,6 +10,7 @@ enum MessageType {
     GAME_OVER = 3;
     BOT_OR_NOT = 4;
     PLAY_AGAIN = 5;
+    ANSWER_CORRECT = 6;
 }
 
 message WrapperMessage {
@@ -21,6 +22,7 @@ message WrapperMessage {
         GameOverMessage game_over = 5;
         BotOrNotMessage bot_or_not = 6;
         PlayAgainMessage play_again = 7;
+        AnswerCorrectMessage answer_correct = 8;
     }
 }
 
@@ -46,4 +48,8 @@ message PlayAgainMessage {
 
 message BotOrNotMessage {
     bool are_players_bots = 1;
+}
+
+message AnswerCorrectMessage {
+    bool is_correct_answer = 1;
 }

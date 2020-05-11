@@ -34,7 +34,7 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 }
 
 func AssignRoom(player player.Player) {
-	goesToBotRoom := false
+	goesToBotRoom := true
 	if goesToBotRoom {
 		botRoom := NewRoom(AssignRoom, true)
 		botRooms[botRoom.GetRoomId()] = botRoom

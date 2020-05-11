@@ -41,3 +41,10 @@ func WrapBotOrNotMessage(msg *BotOrNotMessage) *WrapperMessage {
 		Message:     &WrapperMessage_BotOrNot{msg},
 	}
 }
+
+func WrapAnswerCorrectMessage(msg *AnswerCorrectMessage) *WrapperMessage {
+	return &WrapperMessage{
+		MessageType: MessageType_ANSWER_CORRECT,
+		Message:     &WrapperMessage_AnswerCorrect{msg},
+	}
+}

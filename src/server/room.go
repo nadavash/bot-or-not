@@ -17,7 +17,7 @@ const (
 	RoomStateWaiting    RoomState = 0
 	RoomStateInProgress RoomState = 1
 	RoomStateFinished   RoomState = 2
-	gameTimeSeconds               = 120
+	gameTimeSeconds               = 20
 	roomLimit                     = 2
 )
 
@@ -111,6 +111,15 @@ func (r *Room) acceptIncomingChatMessages(player player.Player) {
 			fmt.Println("accepting decisions from players")
 			fmt.Println("Decision received:", decisionMsg)
 			log.Printf("decision: %v", decisionMsg.ArePlayersBots)
+			isAnswerCorrect := decisionMsg.ArePlayersBots == r.isBotRoom
+			player.SendMessage(
+				message.WrapAnswerCorrectMessage(
+					&message.AnswerCorrectMessage{
+						IsCorrectAnswer: isAnswerCorrect,
+					},
+				),
+			)
+
 			r.roomState = RoomStateFinished
 			r.acceptPlayAgain(player)
 		}
@@ -150,10 +159,15 @@ func (r *Room) broadcastMessages() {
 
 func (r *Room) handleGameLogic() {
 	fmt.Println("4 player")
-	for secondsLeft := gameTimeSeconds; secondsLeft > 0; secondsLeft-- {
+	for secondsLeft := gameTimeSeconds; secondsLeft > 0; secondsLeft -= 60 {
 		r.sendRoomMessage(
 			fmt.Sprintf("%d seconds left in the game", secondsLeft))
-		time.Sleep(time.Minute)
+
+		if secondsLeft < 60 {
+			time.Sleep(time.Duration(secondsLeft) * time.Second)
+		} else {
+			time.Sleep(time.Minute)
+		}
 	}
 
 	r.sendRoomMessage("Times up, game is over!")
