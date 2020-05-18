@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
@@ -55,8 +56,17 @@ func AssignRoom(player player.Player) {
 
 func main() {
 	fmt.Println("V5")
+
+	webDir := flag.String("web_dir", "./web", "Path to the web directory.")
+	flag.Parse()
+
+	// Start the web server on the default port.
+	fs := http.FileServer(http.Dir(*webDir))
+	go func() { http.ListenAndServe(":80", fs) }()
+
 	// Configure websocket route
 	http.HandleFunc("/ws", handleConnections)
+
 	// Start the server on localhost port 8000 and log any errors
 	err := http.ListenAndServe(":8000", nil)
 	if err != nil {
