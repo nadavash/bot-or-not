@@ -15,7 +15,8 @@
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "eject": "react-scripts eject",
+    "compile-protos": "protoc --proto_path=../src/message/ --go_out=../src/message --go_opt=paths=source_relative --js_out=import_style=commonjs,binary:src/proto ../src/message/messages.proto"
   },
   "eslintConfig": {
     "extends": "react-app"

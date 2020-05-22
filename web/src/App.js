@@ -2,6 +2,7 @@ import React from 'react';
 import { withStyles } from '@material-ui/core/styles';
 import TextField from "@material-ui/core/TextField";
 import Button from "@material-ui/core/Button";
+import { WrapperMessage, ServerConnectionSuccessMessage } from "proto/messages_pb.js"
 
 class App extends React.Component {
     state = {username: '', email: ''}
@@ -25,6 +26,7 @@ class App extends React.Component {
 // Listen for messages
         socket.addEventListener('message', function (event) {
             console.log('Message from server ', event.data);
+
         });
         console.log('success')
     }
