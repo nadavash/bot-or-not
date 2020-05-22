@@ -22,7 +22,7 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 		log.Fatal(err)
 	}
 
-	humanPlayer := player.NewHumanPlayer(ws)
+	humanPlayer := player.NewHumanPlayer("", "", ws)
 	msg := message.WrapServerConnectionSuccessMessage(
 		&message.ServerConnectionSuccessMessage{
 			WelcomeMessage: "You're connected to the Bot or Not server!",

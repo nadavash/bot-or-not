@@ -2,9 +2,10 @@ package player
 
 import (
 	"fmt"
+	"time"
+
 	"github.com/mattshiel/eliza-go/eliza"
 	"github.com/nadavash/bot-or-not/src/message"
-	"time"
 )
 
 type BotPlayer struct {
@@ -13,6 +14,14 @@ type BotPlayer struct {
 
 func NewBotPlayer() *BotPlayer {
 	return &BotPlayer{messageChannel: make(chan string)}
+}
+
+func (p *BotPlayer) GetName() string {
+	return "eliza"
+}
+
+func (p *BotPlayer) GetEmail() string {
+	return ""
 }
 
 func (p *BotPlayer) SendMessage(msg *message.WrapperMessage) error {
@@ -25,7 +34,7 @@ func (p *BotPlayer) SendMessage(msg *message.WrapperMessage) error {
 }
 
 func (p *BotPlayer) ReceiveMessage() (*message.WrapperMessage, error) {
-	m := <- p.messageChannel
+	m := <-p.messageChannel
 	time.Sleep(time.Second * 2)
 	return message.WrapChatMessage(&message.ChatMessage{
 		Username: "eliza",

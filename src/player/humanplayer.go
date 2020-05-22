@@ -7,11 +7,21 @@ import (
 )
 
 type HumanPlayer struct {
+	name   string
+	email  string
 	client *websocket.Conn
 }
 
-func NewHumanPlayer(c *websocket.Conn) *HumanPlayer {
-	return &HumanPlayer{client: c}
+func NewHumanPlayer(name string, email string, c *websocket.Conn) *HumanPlayer {
+	return &HumanPlayer{name: name, email: email, client: c}
+}
+
+func (p *HumanPlayer) GetName() string {
+	return p.name
+}
+
+func (p *HumanPlayer) GetEmail() string {
+	return p.email
 }
 
 func (p *HumanPlayer) SendMessage(msg *message.WrapperMessage) error {
