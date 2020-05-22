@@ -17,12 +17,16 @@ var upgrader = websocket.Upgrader{}
 
 func handleConnections(w http.ResponseWriter, r *http.Request) {
 	// Upgrade the initial GET request to a websocket
+	upgrader.CheckOrigin = func(r *http.Request) bool { return true }
+	email := r.FormValue("email")
+	name := r.FormValue("name")
+
 	ws, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	humanPlayer := player.NewHumanPlayer("", "", ws)
+	humanPlayer := player.NewHumanPlayer(name, email, ws)
 	msg := message.WrapServerConnectionSuccessMessage(
 		&message.ServerConnectionSuccessMessage{
 			WelcomeMessage: "You're connected to the Bot or Not server!",
