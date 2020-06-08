@@ -16,3 +16,5 @@
 
 web/build
 web/node_modules
+
+package-lock.json
